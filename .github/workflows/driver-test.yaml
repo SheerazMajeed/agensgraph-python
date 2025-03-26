@@ -1,0 +1,40 @@
+name: Python Driver Tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-dev libpq-dev
+        pip install -r requirements.txt
+
+    - name: Build and Install Package
+      run: |
+        python setup.py install
+
+    - name: Run Tests
+      env:
+        AGENSGRAPH_TESTDB: ${{ secrets.AGENSGRAPH_TESTDB }}
+        AGENSGRAPH_TESTDB_HOST: ${{ secrets.AGENSGRAPH_TESTDB_HOST }}
+        AGENSGRAPH_TESTDB_PORT: ${{ secrets.AGENSGRAPH_TESTDB_PORT }}
+        AGENSGRAPH_TESTDB_USER: ${{ secrets.AGENSGRAPH_TESTDB_USER }}
+        AGENSGRAPH_TESTDB_PASSWORD: ${{ secrets.AGENSGRAPH_TESTDB_PASSWORD }}
+      run: |
+        python setup.py test
