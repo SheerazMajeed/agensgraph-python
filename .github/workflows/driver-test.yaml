@@ -28,10 +28,6 @@ jobs:
             libpq-dev \
             git
 
-      - name: Clone AgensGraph Source
-        run: |
-          git clone https://github.com/skaiworldwide-oss/agensgraph.git
-
       - name: Build and Install AgensGraph
         run: |
           cd agensgraph
