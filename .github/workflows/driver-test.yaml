@@ -2,38 +2,93 @@ name: Python Driver Tests
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
+  workflow_dispatch:
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout AgensGraph Python Driver
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libreadline-dev \
+            zlib1g-dev \
+            flex \
+            bison \
+            python3-dev \
+            libpq-dev \
+            git
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y python3-dev libpq-dev
-        
-    - name: Build and Install Package
-      run: |
-        python setup.py install
+      - name: Clone AgensGraph Source
+        run: |
+          git clone https://github.com/skaiworldwide-oss/agensgraph.git
 
-    - name: Run Tests
-      env:
-        AGENSGRAPH_TESTDB: ${{ secrets.AGENSGRAPH_TESTDB }}
-        AGENSGRAPH_TESTDB_HOST: ${{ secrets.AGENSGRAPH_TESTDB_HOST }}
-        AGENSGRAPH_TESTDB_PORT: ${{ secrets.AGENSGRAPH_TESTDB_PORT }}
-        AGENSGRAPH_TESTDB_USER: ${{ secrets.AGENSGRAPH_TESTDB_USER }}
-        AGENSGRAPH_TESTDB_PASSWORD: ${{ secrets.AGENSGRAPH_TESTDB_PASSWORD }}
-      run: |
-        python setup.py test
+      - name: Build and Install AgensGraph
+        run: |
+          cd agensgraph
+          ./configure --prefix=/usr/local/AgensGraph
+          make -j$(nproc)
+          sudo make install-world
+
+      - name: Set Environment Variables
+        run: |
+          echo "AGDATA=$HOME/agens_data" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/AgensGraph/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "PATH=/usr/local/AgensGraph/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Initialize DB Cluster
+        run: |
+          mkdir -p "$HOME/agens_data"
+          /usr/local/AgensGraph/bin/initdb -D "$HOME/agens_data"
+
+      - name: Start AgensGraph
+        run: |
+          /usr/local/AgensGraph/bin/ag_ctl start -D "$HOME/agens_data" -l "$HOME/agens_data/server.log"
+          sleep 10
+
+      - name: Create test database
+        run: |
+          /usr/local/AgensGraph/bin/createdb agensgraph_test
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        working-directory: drivers/python
+        run: |
+          pip install -r requirements.txt
+
+      - name: Build package
+        working-directory: drivers/python
+        run: |
+          python setup.py install
+
+      - name: Run regression tests
+        working-directory: drivers/python
+        env:
+          AG_HOST: localhost
+          AG_PORT: 5432
+          AG_DB: testdb
+          AG_USER: $USER
+        run: |
+          python test_age_py.py -db "$AG_DB" -u "$AG_USER"
+          python test_networkx.py -db "$AG_DB" -u "$AG_USER"
+          python -m unittest -v test_agtypes.py
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-test-results
+          path: drivers/python/test-results/
