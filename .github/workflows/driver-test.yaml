@@ -85,9 +85,7 @@ jobs:
           AG_USER: runner
           AG_PASSWORD: runner
         run: |
-          python test_age_py.py -db "$AG_DB" -u "$AG_USER" -pass "$AG_PASSWORD"
-          python test_networkx.py -db "$AG_DB" -u "$AG_USER" -pass "$AG_PASSWORD"
-          python -m unittest -v test_agtypes.py
+          python -m unittest discover -s tests -p "test_*.py" -v
 
       - name: Upload Test Results
         if: always()
