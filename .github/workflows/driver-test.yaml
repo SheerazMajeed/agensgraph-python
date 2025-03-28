@@ -43,7 +43,7 @@ jobs:
           cd ~/agensgraph_source
           ./configure --prefix=$HOME/agensgraph_build
           make -j$(nproc)
-          make install-world
+          make install
 
       - name: Set Environment Variables
         run: |
